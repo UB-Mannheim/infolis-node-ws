@@ -1,0 +1,8 @@
+{
+    "name": "infolink-ws",
+    "version": "0.0.1"
+    "dependencies": {
+        "coffee-script", ">=0",
+        "csv", ">=0"
+    }
+}
