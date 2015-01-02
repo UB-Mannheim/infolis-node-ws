@@ -1,3 +1,4 @@
+# !./node_modules/coffee-script/bin/coffee %
 
 http = require("http")
 csv = require("csv")
@@ -30,17 +31,44 @@ init = ->
   links.end()
   return
 
+_matches_to_objects = (matches) ->
+    ret = []
+    for id in matches
+        ret.push {
+            "@type": "MatchResult",
+            "accuracy": Math.random(),
+            "id": id
+        }
+    ret
+
+
 handle_ids_for_id = (req, res, url_parts) ->
     needle = url_parts.query.id
     console.log needle
-    matches = mapping[needle] or []
-    if matches.length > 0
+    matches_raw = mapping[needle] or []
+    if matches_raw.length > 0
         res.writeHead 200, "Content-Type": "application/json"
     else
         res.writeHead 404, "Content-Type": "application/json"
     ret = {
+        "@context": {
+            "needle": {
+                "@id": "http://onto.dm2e.eu/omnom/parameterValue",
+                "@type": "@id"
+            },
+            "accuracy": {
+                "@id": "http://rs.tdwg.org/dwc/terms/measurementAccuracy",
+                "@type": "http://www.w3.org/2001/XMLSchema#float",
+            },
+            "id": {
+                "@id": "http://foo.bar/id",
+                "@type": "@id"
+            }
+        },
+        "@id": req.url,
+        "@type": "MatchResultList",
         "needle": needle,
-        "matches": matches
+        "skos:broadMatch": _matches_to_objects matches_raw
     }
     res.end JSON.stringify(ret)
 
@@ -55,9 +83,13 @@ handle_default = (req, res, url_parts) =>
     res.end index
 
 http.createServer((req, res) ->
-    url_parts = url.parse(req.url, true)
+    res.setHeader "Access-Control-Allow-Origin", "*"
+    res.setHeader "Access-Control-Allow-Headers", "X-Requested-With, exlrequesttype"
+    url_parts = url.parse req.url, true
+    action = url_parts.pathname.split('/').pop()
     console.log url_parts
-    if url_parts.pathname is "/ids-for-id"
+    console.log action
+    if action is "ids-for-id"
         handle_ids_for_id(req, res, url_parts)
     else
         handle_default(req, res, url_parts)
