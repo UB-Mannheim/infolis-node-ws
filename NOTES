@@ -1,0 +1,9 @@
+JS Snippet
+$.ajax({
+    'url': 'http://xxxx/ids-for-id?id=urn:nbn:de:0168-ssoar-9910',
+    'dataType': 'json',
+    'success': function (data) {
+        console.log(data);
+    }
+});
+

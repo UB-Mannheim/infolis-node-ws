@@ -1,5 +1,6 @@
 # !./node_modules/coffee-script/bin/coffee %
 
+async = require 'async'
 http = require("http")
 csv = require("csv")
 fs = require("fs")
@@ -41,7 +42,6 @@ _matches_to_objects = (matches) ->
         }
     ret
 
-
 handle_ids_for_id = (req, res, url_parts) ->
     needle = url_parts.query.id
     console.log needle
@@ -77,10 +77,40 @@ console.log "Loading links"
 init()
 console.log "Starting server"
 
-handle_default = (req, res, url_parts) =>
+handle_default = (req, res, url_parts) ->
+    # just for debugging
     index = fs.readFileSync("index.html")
     res.writeHead 200, "Content-Type": "text/html"
     res.end index
+
+handle_doi_info = (req, res, url_parts) ->
+    ret = {}
+    async.series [
+
+        # Ask for the agency
+        (cb) ->
+            url = 'http://api.crossref.org/works/' + url_parts.query.doi + '/agency'
+            http.get url, (api_res) ->
+                api_res.on 'data', (chunk) ->
+                    msg = JSON.parse(chunk.toString())
+                    ret.doi_agency = msg.message.agency
+                    ret.doi = msg.message.doi
+                    cb()
+        # Ask for metadata
+        (cb) ->
+            url = 'http://api.crossref.org/works/' + url_parts.query.doi
+            http.get url, (api_res) ->
+                api_res.on 'data', (chunk) ->
+                    msg = JSON.parse(chunk.toString())
+                    console.log msg.message
+                    ret.stuff = msg.message
+                    cb()
+        # Resolve the DOI and query Zotero web service for more information on this
+        # TODO
+        ],
+        (err, results) ->
+            res.writeHead 200, "Content-Type": "application/json"
+            res.end JSON.stringify ret
 
 http.createServer((req, res) ->
     res.setHeader "Access-Control-Allow-Origin", "*"
@@ -91,8 +121,8 @@ http.createServer((req, res) ->
     console.log action
     if action is "ids-for-id"
         handle_ids_for_id(req, res, url_parts)
+    else if action is "doi-info"
+        handle_doi_info(req, res, url_parts)
     else
         handle_default(req, res, url_parts)
-    res.end()
-    return
 ).listen 3000
