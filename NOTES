@@ -1,3 +1,7 @@
+Run with nodemon
+` nodemon server.coffee
+
+
 JS Snippet
 $.ajax({
     'url': 'http://xxxx/ids-for-id?id=urn:nbn:de:0168-ssoar-9910',

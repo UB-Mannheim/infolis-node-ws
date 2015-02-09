@@ -1,8 +1,34 @@
 {
-    "name": "infolink-ws",
-    "version": "0.0.1",
-    "dependencies": {
-        "coffee-script": ">=0",
-        "csv": ">=0"
-    }
+  "name": "infolink-ws",
+  "description": "Web services for information gathering in the InFoLiS 2 project",
+  "version": "0.0.1",
+  "dependencies": {
+    "coffee-script": ">=0",
+    "csv": ">=0",
+    "async": ">=0",
+    "request": ">=0",
+    "jade": ">=0",
+    "mongodb": ">=0",
+    "request": ">=0",
+    "tough-cookie": ">=0"
+  },
+  "main": "run.js",
+  "devDependencies": {
+    "minimist": ">=0",
+    "coffee-script": "^1.8.0"
+  },
+  "scripts": {
+    "test": "./test.sh",
+    "dev": "node run.js debug"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/UB-Mannheim/infolis-node-ws.git"
+  },
+  "author": "kbaierer",
+  "license": "BSD",
+  "bugs": {
+    "url": "https://github.com/UB-Mannheim/infolis-node-ws/issues"
+  },
+  "homepage": "https://github.com/UB-Mannheim/infolis-node-ws"
 }
