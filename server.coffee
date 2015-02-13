@@ -53,13 +53,22 @@ _matches_to_objects = (matches) ->
 
 _content_type_from_headers = (headers) ->
     acc = headers.accept
+    if acc.indexOf(',')  > -1
+        acc = acc.substring 0, acc.indexOf(',')
     ct_default = "application/json"
     if acc is null
         return ct_default
     if acc is "*/*"
         return "text/html"
     else
-        return acc.substring(0, acc.indexOf(','))
+        return acc
+
+_findPdfLink = (doc) ->
+    if doc.zotero
+        for att in doc.zotero[0].attachments
+            if att.mimeType is 'application/pdf'
+                return att.url
+    return "---"
 
 handle_ids_for_id = (req, res) ->
     url_parts = url.parse(req.url, true)
@@ -113,6 +122,12 @@ handle_doi_info = (req, res, db) ->
         #     res.writeHead 200, "Content-Type": "text/html"
         #     res.end jadeDoiInfo({data: results})
         # else
+        console.log _content_type_from_headers(req.headers)
+        if _content_type_from_headers(req.headers) is "application/pdf"
+            res.setHeader "Location", _findPdfLink(results)
+            res.writeHead 303, "Content-Type": "text/html"
+            res.end()
+        else
             res.writeHead 200, "Content-Type": "application/json"
             res.end JSON.stringify(results)
 
