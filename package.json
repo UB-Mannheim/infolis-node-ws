@@ -3,22 +3,26 @@
   "description": "Web services for information gathering in the InFoLiS 2 project",
   "version": "0.0.1",
   "dependencies": {
+    "async": ">=0",
+    "cheerio": "^0.18.0",
     "coffee-script": ">=0",
     "csv": ">=0",
-    "async": ">=0",
-    "request": ">=0",
     "jade": ">=0",
+    "moment": ">=0",
     "mongodb": ">=0",
     "request": ">=0",
+    "tabletojson": ">=0",
     "tough-cookie": ">=0"
   },
   "main": "run.js",
   "devDependencies": {
+    "coffee-script": "^1.8.0",
     "minimist": ">=0",
-    "coffee-script": "^1.8.0"
+    "tap-spec": "^2.2.1",
+    "tape": "^3.5.0"
   },
   "scripts": {
-    "test": "./test.sh",
+    "test": "coffee test/google-scholar.coffee | tap-spec ; true",
     "dev": "node run.js debug"
   },
   "repository": {

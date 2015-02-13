@@ -1,9 +1,12 @@
 root = module ? window
 
+cheerio = require 'cheerio'
+moment = require 'moment'
 extend = require('util')._extend
 request = require('request').defaults({jar:true})
 http = require 'http'
 google = require 'google'
+querystring = require 'querystring'
 
 _err = (code, id, msg, body) ->
     ret = 
@@ -33,10 +36,62 @@ httpGetJSON = (url, cb) ->
         if err or not resp or resp.statusCode != 200 then return ERROR.COULD_NOT_RETRIEVE_JSON(cb, 500, url, body)
         cb null, body
 
-GoogleSearch = (opts) ->
+#http://sfx.bib.uni-mannheim.de:8080/sfx_local
+# ctx_enc=info:ofi/enc:UTF-8
+# ctx_id=10_1
+# ctx_tim=2015-02-11T13:49:9CET
+# ctx_ver=Z39.88-2004
+# rfr_id=info:sid/sfxit.com:citation
+# rft.date=1983
+# rft.genre=article
+# rft.issn=0886-6708
+# rft.issue=2
+# rft.volume=5
+# rft_val_fmt=info:ofi/fmt:kev:mtx:journal
+# sfx.title_search=contains
+# url_ctx_fmt=info:ofi/fmt:kev:mtx:ctx
+# url_ver=Z39.88-2004 
+#
+Sfx = (opts) ->
 
-    if not opts.db
-        return new Error('Must set MongoDB')
+    for i in "baseurl default_specs".split ' '
+        if not opts[i] then return new Error "Must set '#{i}'" else this[i] = opts[i]
+
+    search: (specs, cb) ->
+        specs = extend(default_specs, specs)
+        specs.ctx_tim =  moment().format("YYYY-MM-DD[T]HH:mm:s[CET]")
+        openurl = baseurl + '?' + querystring.stringify(specs)
+        console.log(openurl)
+
+GoogleScholar = (opts) ->
+    GOOGLE_SCHOLAR_BASEURL = 'http://scholar.google.de/scholar'
+
+    queryUrl = (q) -> 
+        args =
+            hl: 'de'
+            btnG: ''
+            lr: ''
+            q: q
+        return GOOGLE_SCHOLAR_BASEURL + '?' + querystring.stringify(args).replace(/%20/g, '+')
+
+    searchForSpec: (spec, cb) ->
+        if not spec or not spec.title or not spec.aulast
+            return 'Must set title and aulast'
+        url = queryUrl(spec.title + ' ' + spec.aulast)
+        request {
+            method: 'GET'
+            url: url
+        }, (err, resp, body) ->
+            if err
+                return ERROR.COULD_NOT_RETRIEVE(cb, resp.statusCode, url, body)
+            $ = cheerio.load(body)
+            publink =  $('h3 a').attr('href')
+            if not publink
+                return ERROR.COULD_NOT_RETRIEVE(cb, resp.statusCode, url, "Couldn't find the first result in here")
+            return cb null, publink
+
+
+GoogleSearch = (opts) ->
 
     google.resultsPerPage = opts.resultsPerPage
 
@@ -50,9 +105,6 @@ GoogleSearch = (opts) ->
                 cb null, null
 
 Zotero = (opts) ->
-
-    if not opts.db
-        return new Error('Must set MongoDB')
 
     scrapeDOI : (doi, cb) ->
         self = this
@@ -87,9 +139,6 @@ Zotero = (opts) ->
 
 CrossRef = (opts) ->
 
-    if not opts.db
-        return new Error('Must set MongoDB')
-
     CROSSREF_API_URL : "http://api.crossref.org"
 
     # https://github.com/zotero/translators/blob/master/DOI.js#L34
@@ -120,6 +169,17 @@ CrossRef = (opts) ->
             cb err, data
 
 DEFAULT_OPTIONS =
+    Sfx:
+        default_specs:
+            ctx_id: "10_1"
+            ctx_id: "info:ofi/enc:UTF-8"
+            ctx_ver: "Z39.88-2004"
+            url_ver: "Z39.88-2004"
+            rfr_id: "info:sid/sfxit.com:citation"
+            rft_val_fmt: "info:ofi/fmt:kev:mtx:journal"
+            url_ctx_fmt: "info:ofi/fmt:kev:mtx:ctx"
+            'sfx.title_search': "contains"
+    GoogleScholar: {}
     CrossRef: {}
     Zotero:
         server: "localhost"
@@ -129,6 +189,8 @@ DEFAULT_OPTIONS =
         resultsPerPage: 5
 
 root.exports =
+    Sfx: (opts) -> Sfx(extend(DEFAULT_OPTIONS.Sfx, opts))
+    GoogleScholar: (opts) -> GoogleScholar(extend(DEFAULT_OPTIONS.GoogleScholar, opts))
     Zotero: (opts) -> Zotero(extend(DEFAULT_OPTIONS.Zotero, opts))
     CrossRef: (opts) -> CrossRef(extend(DEFAULT_OPTIONS.CrossRef, opts))
     GoogleSearch: (opts) -> GoogleSearch(extend(DEFAULT_OPTIONS.GoogleSearch,opts))

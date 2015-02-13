@@ -127,9 +127,9 @@ handle_doi_info = (req, res, db) ->
         # TODO don't cache for testing
         if mongoResult
             return sendResults(req, res, mongoResult)
-        crossRef = pubres.CrossRef({ db: db })
-        zotero = pubres.Zotero({ db: db })
-        googleSearch = pubres.GoogleSearch({ db: db, resultsPerPage: 1 })
+        crossRef = pubres.CrossRef()
+        zotero = pubres.Zotero()
+        googleSearch = pubres.GoogleSearch({ resultsPerPage: 1 })
         async.waterfall [
             (callback) ->
                 # console.log "STEP 1"

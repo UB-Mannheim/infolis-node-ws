@@ -19,3 +19,10 @@ Available endpoints:
 
 * Resolves URN to DOI and vice versa from the links.csv file
 
+
+## Relevant Mongo queries
+
+Find the docs where zotero translation failed
+```
+db.getCollection('doi_info').find({'$or': [{'zotero':{'$exists':false}}, {'zotero':null}]}).count()
+```
