@@ -1,14 +1,18 @@
 # !./node_modules/coffee-script/bin/coffee %
 
 # logging
-log = require('./logging').defaultLogger
+log = require('./lib/logging').defaultLogger
+pubres = require './lib/pubres'
+NS = require './lib/namespaces'
+CSON = require 'cson'
+jsonld = require 'jsonld'
+
 
 _extend = require('util')._extend
 async = require 'async'
 csv = require 'csv'
 fs = require 'fs'
 url = require 'url'
-pubres = require './lib/pubres'
 jade = require 'jade'
 { MongoClient } = require 'mongodb'
 
@@ -62,17 +66,14 @@ _findPdfLink = (doc) ->
         for att in doc.zotero[0].attachments
             if att.mimeType is 'application/pdf'
                 return att.url
-    return "---"
+    return ""
 
 handle_ids_for_id = (req, res) ->
-    url_parts = url.parse(req.url, true)
-    needle = url_parts.query.id
-    # log.info needle
+    needle = req.query.id
+    if not needle
+        return next(message : "Missing 'id' parameter.")
     matches_raw = doi2urnMapping[needle] or []
-    if matches_raw.length > 0
-        res.writeHead 200, "Content-Type": "application/json"
-    else
-        res.writeHead 404, "Content-Type": "application/json"
+    res.status = if matches_raw.length > 0 then 200 else 404
     ret = {
         "@context": {
             "needle": {
@@ -93,7 +94,74 @@ handle_ids_for_id = (req, res) ->
         "needle": needle,
         "skos:broadMatch": _matches_to_objects matches_raw
     }
-    res.end JSON.stringify(ret)
+    res.json ret
+
+handle_context = (req, res, next) ->
+    # namespaces
+    context = NS.toJSONLD()
+    return json.send context
+
+handle_vocab = (req, res, next) ->
+    # the vocabulary
+    rawVocab = CSON.load './views/infolis-vocabulary.csonld'
+    # namespaces
+    context = NS.toJSONLD()
+    # JSON-LD presentation mode
+    profile = req.query.jsonld_profile || 'compact'
+
+    if req.params.term
+        [ filteredVocab ] = rawVocab['@graph'].filter (doc) ->
+            doc['@id'] is 'infolis:' + req.params.term or
+            doc['@id'] is NS.infolis + req.params.term
+        if not filteredVocab
+            return next {message: "No such term '#{req.params.term}'", status: 404}
+        else
+        filteredVocab['@context'] = rawVocab['@context']
+        rawVocab = filteredVocab
+
+    sendRDF = (err, data) ->
+        console.log err
+        return next {message: "JSON-LD Error", body: err} if err
+        res.status 200
+        res.set 'Content-Type': "application/nquads"
+        res.send data
+    sendJSONLD = (err, data) ->
+        return next {message: "JSON-LD Error", body: err} if err
+        res.status 200
+        res.set 'Content-Type': 'application/ld+json'
+        res.json data
+    sendHTML = (err, data) ->
+        return next {message: "JSON-LD Error", body: err} if err
+        res.status 200
+        res.set 'Content-Type': 'text/html'
+        res.render 'debug-output', data: data
+    res.header "Link": "<#{NS.infolis}>" + '; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+    res.format
+        json: () ->
+            # Accept: application/ld+json; q=1, profile="http://www.w3.org/ns/json-ld#flattened"
+            if req.header('Accept').indexOf('profile') > -1
+                requestedProfile = req.header('Accept').match /profile=\"([^"]+)\"/
+                if not requestedProfile or not requestedProfile[1]
+                    return next { status: 400, message: "Unparseable 'profile' accept-param" }
+                switch requestedProfile[1]
+                    when 'http://www.w3.org/ns/json-ld#flattened' then profile = 'flatten'
+                    when 'http://www.w3.org/ns/json-ld#compacted' then profile = 'compact'
+                    when 'http://www.w3.org/ns/json-ld#expanded' then profile = 'expand'
+                    else return next { status: 406, message: "'profile' accept-param must be from the list" }
+            if profile is "expand" then jsonld.expand rawVocab, {expandContext: context}, sendJSONLD
+            else jsonld[profile] rawVocab, context,sendJSONLD
+        html: () ->
+            if profile is "expand" then jsonld.expand rawVocab, {expandContext: context}, sendHTML
+            else jsonld[profile] rawVocab, context, sendHTML
+        "text/n3": () ->
+            return jsonld.toRDF rawVocab, {expandContext: context, format: "application/nquads"}, sendRDF
+        "application/nquads": () ->
+            return jsonld.toRDF rawVocab, {expandContext: context, format: "application/nquads"}, sendRDF
+        "text/turtle": () ->
+            return jsonld.toRDF rawVocab, {expandContext: context, format: "application/nquads"}, sendRDF
+        default: () ->
+            res.status(406)
+            return res.end()
 
 
 handle_default = (req, res, next) ->
@@ -170,19 +238,37 @@ startServer = (db) ->
     express = require 'express'
     app = express()
 
+    # Inject reference to MongoDB middleware
+    mongoMiddleware = (req, res, next) ->
+        req.mongoDB = db
+        next()
+
+    # CORS middleware (required for AJAX requests from Primo)
+    corsMiddleware = (req, res, next) ->
+        res.header 'Access-Control-Allow-Origin', '*'
+        res.header 'Access-Control-Allow-Headers', 'Content-Type, X-Requested-With, exlrequesttype'
+        next()
+
+    # Error handler
+    errorHandler = (err, req, res, next) ->
+        res.status err.status || 400
+        res.format
+            json: () ->
+                res.set "Content-Type": "application/problem+json"
+                res.json err
+            html: () ->
+                res.set "Content-Type": "text/html"
+                res.render 'error', message: err.message, body: err.body
+            default: () ->
+                res.set "Content-Type": "text/plain"
+                res.set "X-Error-Message": err.message
+                res.send JSON.stringify err
     # Templates
     app.set 'views', './views'
     app.set 'view engine', 'jade'
 
-    # Inject reference to MongoDB middleware
-    app.use (req, res, next) ->
-        req.mongoDB = db
-        next()
-    # CORS middleware
-    app.use (req, res, next) ->
-        res.header 'Access-Control-Allow-Origin', '*'
-        res.header 'Access-Control-Allow-Headers', 'Content-Type, X-Requested-With, exlrequesttype'
-        next()
+    app.use mongoMiddleware
+    app.use corsMiddleware
 
     ###
     # set up routes
@@ -190,22 +276,12 @@ startServer = (db) ->
     ###
     app.get '/ids-for-id', handle_ids_for_id
     app.get '/doi-info', handle_doi_info
+    app.get '/context', handle_vocab
+    app.get '/vocab/:term', handle_vocab
+    app.get '/vocab', handle_vocab
     app.get '/', handle_default
 
-    # Error handler
-    app.use (err, req, res, next) ->
-        res.status 400
-        res.format
-            'application/json': () ->
-                res.set "Content-Type": "application/problem+json"
-                res.json err
-            'text/html': () ->
-                res.set "Content-Type": "text/html"
-                res.render 'error', message: err.message
-            'default': () ->
-                res.set "Content-Type": "text/plain"
-                res.set "X-Error-Message": err.message
-                res.end()
+    app.use errorHandler
 
     # Run the server
     http = require 'http'
@@ -221,4 +297,3 @@ MongoClient.connect 'mongodb://localhost:27017/infolis', (mongoErr, db) ->
         log.info mongoErr
         return
     startServer(db)
-

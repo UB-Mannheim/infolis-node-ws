@@ -6,6 +6,7 @@
     "async": ">=0",
     "cheerio": "^0.18.0",
     "coffee-script": ">=0",
+    "cson": "^2.0.0",
     "csv": ">=0",
     "express": "^4.11.2",
     "jade": ">=0",

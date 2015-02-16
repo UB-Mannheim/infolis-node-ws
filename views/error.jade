@@ -1,5 +1,8 @@
 html
     body
         h1 Error
+        h2 Error Message
+        pre= message
+        h2 Detailed Error
         pre
-            !=message
+            !=JSON.stringify(body, null, 2)

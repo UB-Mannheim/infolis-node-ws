@@ -1,3 +1,5 @@
 node_modules
 infolis-links.csv
 http-infolis-ws.conf
+*csv
+*log
