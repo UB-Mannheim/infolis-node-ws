@@ -1,0 +1,42 @@
+html
+  head
+    title InFoLiS Prototype Web Service
+  body
+    xmp(theme='united', style='display:none').
+      # Web Service for InfoLink
+
+      ## /ids-for-id
+
+      Parameters
+
+      * `id` : id of the thing to match
+
+      example
+
+      ```
+      ==> GET /ids-for-id?id=abcd
+      <== 200 application/json
+      {
+        "needle": "abcd",
+        "links": [
+            "1234",
+            "5678"
+        ]
+      }
+      ==> GET /ids-for-id?id=doesntexist
+      <== 404 application/json
+      {
+        "needle": "doesntexist",
+        "links": []
+      }
+      ```
+
+      ## /doi-info
+
+      Parameters
+
+      * `doi` : DOI to look for
+
+      This gathers information about a URI from the CrossRef REST API and local Zotero Translation server
+
+    script(src='http://strapdownjs.com/v/0.2/strapdown.js')

@@ -1,45 +1,39 @@
 # !./node_modules/coffee-script/bin/coffee %
 
-util = require 'util'
+# logging
+log = require('./logging').defaultLogger
+
+_extend = require('util')._extend
 async = require 'async'
-http = require 'http'
 csv = require 'csv'
 fs = require 'fs'
 url = require 'url'
-pubres = require 'pubres'
+pubres = require './lib/pubres'
 jade = require 'jade'
 { MongoClient } = require 'mongodb'
 
+doi2urnMapping = {}
 
-mapping = {}
-index = ''
-jadeDoiInfo = jade.compileFile('templates/doi.jade')
-links = null
-file_links = null
-
-init = ->
+readCsvLinks = ->
+    return
+    file_links = null
     file_links = fs.readFileSync("infolis-links.csv")
-    index = fs.readFileSync("index.html")
     links = csv.parse(delimiter: "|")
     cur = 0
+    links = null
     links.on "readable", ->
         while record = links.read()
             cur += 1
             id_a = record[1]
             id_b = record[5]
             [[id_a, id_b], [id_b, id_a]].forEach (pair) ->
-                if pair[0] of mapping
-                    mapping[pair[0]].push pair[1]
+                if pair[0] of doi2urnMapping
+                    doi2urnMapping[pair[0]].push pair[1]
                 else
-                    mapping[pair[0]] = [pair[1]]
-            console.log("Loading link #"+cur) if cur % 5000 is 0
+                    doi2urnMapping[pair[0]] = [pair[1]]
+            # log.info("Loading link #"+cur) if cur % 5000 is 0
     links.write file_links
     links.end()
-
-sendError = (res, msg) ->
-    res.writeHead 400, "Content-Type": "application/problem+json"
-    res.end msg
-    return res
 
 _matches_to_objects = (matches) ->
     ret = []
@@ -73,8 +67,8 @@ _findPdfLink = (doc) ->
 handle_ids_for_id = (req, res) ->
     url_parts = url.parse(req.url, true)
     needle = url_parts.query.id
-    console.log needle
-    matches_raw = mapping[needle] or []
+    # log.info needle
+    matches_raw = doi2urnMapping[needle] or []
     if matches_raw.length > 0
         res.writeHead 200, "Content-Type": "application/json"
     else
@@ -102,52 +96,48 @@ handle_ids_for_id = (req, res) ->
     res.end JSON.stringify(ret)
 
 
-console.log "Loading links"
-init()
-console.log "Starting server"
+handle_default = (req, res, next) ->
+    res.render 'index'
 
-handle_default = (req, res) ->
-    # just for debugging
-    index = fs.readFileSync("index.html")
-    res.writeHead 200, "Content-Type": "text/html"
-    res.end index
-
-handle_doi_info = (req, res, db) ->
-    ret = {}
-    needle = url.parse(req.url, true).query.doi
-    collection = db.collection('doi_info')
-   
-    sendResults = (req, res, results) ->
-        # if _content_type_from_headers(req.headers) is "text/html"
-        #     res.writeHead 200, "Content-Type": "text/html"
-        #     res.end jadeDoiInfo({data: results})
-        # else
-        console.log _content_type_from_headers(req.headers)
-        if _content_type_from_headers(req.headers) is "application/pdf"
-            res.setHeader "Location", _findPdfLink(results)
-            res.writeHead 303, "Content-Type": "text/html"
-            res.end()
-        else
-            res.writeHead 200, "Content-Type": "application/json"
-            res.end JSON.stringify(results)
+handle_doi_info = (req, res, next) ->
+    db = req.mongoDB
+    needle = req.query.doi
+    if not needle
+        return next(message : "Missing 'doi' parameter.")
 
     # A trailing slash is most probably an error
     needle = needle.replace(/\/$/, '')
-
+    # Use the DOI as _id in Mongo, replace all non-alnum chars with _
     mongoId = needle.replace(/[^a-zA-Z0-9]/g, "_")
-    console.log "Searching for #{needle}, stored as #{mongoId} in db.doi_info"
+    # collection to write to
+    collection = db.collection('doi_info')
+
+    # Send the result to the client using conneg
+    sendResults = (doc) ->
+        res.status 200
+        res.format
+            default: () ->
+                res.json doc
+            html: () ->
+                res.status 303
+                res.render 'debug-output', data: doc
+            "application/pdf": () ->
+                res.location(_findPdfLink(doc))
+                res.end()
+
+    # log.info "Searching for #{needle}, stored as #{mongoId} in db.doi_info"
     collection.findOne {_id: mongoId}, (mongoErr, mongoResult) ->
         if mongoErr
-            return sendError(res, mongoErr)
+            return next(mongoErr)
         # TODO don't cache for testing
-        if mongoResult
-            return sendResults(req, res, mongoResult)
+        if mongoResult and not req.query.force
+            return sendResults(mongoResult)
         crossRef = pubres.CrossRef()
         zotero = pubres.Zotero()
         googleSearch = pubres.GoogleSearch({ resultsPerPage: 1 })
         async.waterfall [
             (callback) ->
-                # console.log "STEP 1"
+                # log.info "STEP 1"
                 async.parallel {
                     # # Ask for the agency
                     # crossRefAgency: (callback) -> crossRef.getAgencyForDOI needle, callback
@@ -159,11 +149,11 @@ handle_doi_info = (req, res, db) ->
                     # callback err, thisStepResults
                     callback null, thisStepResults
            # (previousStepResults, callback) ->
-           #      console.log "STEP 2"
+           #      log.info "STEP 2"
            #      call
                 # if previousStepResults.crossRefWorks and not previousStepResults.crossRefWorks.attachments and previousStepResults.crossRefWorks.title
                 #     googleSearch.searchPDF previousStepResults.crossRefWorks.title, (err, googleResult) ->
-                #         callback null, util._extend(previousStepResults, {googleSearch:googleResult})
+                #         callback null, _extend(previousStepResults, {googleSearch:googleResult})
         ], (err, results) ->
             # if err
             #     return sendError(res, "" + JSON.stringify(err)) if err
@@ -171,25 +161,64 @@ handle_doi_info = (req, res, db) ->
                 _id: mongoId
                 doi: needle
                 updated: new Date().toISOString()
-            results = util._extend(boilerplate, results)
+            results = _extend(boilerplate, results)
             collection.save results, (mongoErr, mongoResult) ->
                 return sendError(res, ""+ mongoErr) if mongoErr
-                return sendResults(req, res, results)
+                res.json(results)
 
-MongoClient.connect('mongodb://localhost:27017/infolis', (mongoErr, db) ->
+startServer = (db) ->
+    express = require 'express'
+    app = express()
+
+    # Templates
+    app.set 'views', './views'
+    app.set 'view engine', 'jade'
+
+    # Inject reference to MongoDB middleware
+    app.use (req, res, next) ->
+        req.mongoDB = db
+        next()
+    # CORS middleware
+    app.use (req, res, next) ->
+        res.header 'Access-Control-Allow-Origin', '*'
+        res.header 'Access-Control-Allow-Headers', 'Content-Type, X-Requested-With, exlrequesttype'
+        next()
+
+    ###
+    # set up routes
+    # NOTE: Must be defined before error handling middleware but after data-injection middleware
+    ###
+    app.get '/ids-for-id', handle_ids_for_id
+    app.get '/doi-info', handle_doi_info
+    app.get '/', handle_default
+
+    # Error handler
+    app.use (err, req, res, next) ->
+        res.status 400
+        res.format
+            'application/json': () ->
+                res.set "Content-Type": "application/problem+json"
+                res.json err
+            'text/html': () ->
+                res.set "Content-Type": "text/html"
+                res.render 'error', message: err.message
+            'default': () ->
+                res.set "Content-Type": "text/plain"
+                res.set "X-Error-Message": err.message
+                res.end()
+
+    # Run the server
+    http = require 'http'
+    server = http.createServer app
+    server.listen 3000
+
+MongoClient.connect 'mongodb://localhost:27017/infolis', (mongoErr, db) ->
+    log.info "Loading links"
+    readCsvLinks()
+    log.info "Starting server"
     if (mongoErr)
-        console.log "Couldn't connect to MongoDB"
-        console.log mongoErr
+        log.info "Couldn't connect to MongoDB"
+        log.info mongoErr
         return
-    http.createServer((req, res) ->
-        res.setHeader "Access-Control-Allow-Origin", "*"
-        res.setHeader "Access-Control-Allow-Headers", "X-Requested-With, exlrequesttype"
+    startServer(db)
 
-        action = url.parse(req.url, true).pathname.split('/').pop()
-        if action is "ids-for-id"
-            handle_ids_for_id(req, res, db)
-        else if action is "doi-info"
-            handle_doi_info(req, res, db)
-        else
-            handle_default(req, res, db)
-    ).listen 3000)
