@@ -1,0 +1,93 @@
+# vim: set ft=yaml sw=4 ts=4:
+
+"@context":
+    "rdfs:domain":
+        "@type": "@id"
+    "rdfs:range":
+        "@type": "@id"
+    "schema:rangeIncludes":
+        "@type": "@id"
+    "schema:domainIncludes":
+        "@type": "@id"
+"@graph":
+    # Ontology
+    - "@id": "infolis:"
+      "@type":
+          - owl:Ontology
+
+    # Mapping
+    - "@id": infolis:Mapping
+      "@type":
+          - skos:Concept
+          - rdfs:Class
+          - owl:Class
+    
+    # resource_1_title
+    - "@id": infolis:resource_1_title
+      "@type": "rdfs:Property"
+      "schema:domainIncludes": infolis:Mapping
+      "schema:sameas": dc:title
+      "rdfs:comment":
+        - "@value": "Title of the Publication"
+          "@language": "en"
+        - "@value": "Titel der Publikatio"
+          "@language": "de"
+
+    # resource_2_title
+    - "@id": infolis:resource_2_title
+      "@type": rdfs:Property
+      "schema:domainIncludes": infolis:Mapping
+      "rdfs:comment":
+        - "@value": "Title of the Dataset"
+          "@language": "en"
+        - "@value": "Titel des Datensets"
+          "@language": "de"
+      "schema:sameas": dc:title
+
+    - "@id": infolis:resource_1_id_type
+      "@type": rdfs:Property
+      "rdfs:range": xsd:String
+      "schema:domainIncludes": infolis:Mapping
+      "rdfs:label": "Publication identifier type"
+      "rdfs:comment":
+        - "@value": "Typ der Literatur-ID, momentan immer 'URN'"
+          "@language": "de"
+
+    - "@id": infolis:resource_2_id_type
+      "@type": rdfs:Property
+      "rdfs:range": xsd:String
+      "schema:domainIncludes": infolis:Mapping
+      "rdfs:label": "Publication identifier type"
+      "rdfs:comment":
+        - "@value": "Typ der Datensatz-ID, momentan immer 'DOI'"
+          "@language": "de"
+
+    - "@id": infolis:confidence
+      "@type": rdfs:Property
+      "rdfs:range": xsd:float
+      "rdfs:comment":
+        - "@value": "Numeric indicator of how reliable this mapping is. 0 = certainly wrong, 1 = certainly right"
+          "@language": "en"
+
+    # infolis:fromPublication
+    - "@id": infolis:fromPublication
+      "@type": rdfs:Property
+      "schema:rangeIncludes":
+        - "@id": bibo:Document
+
+    # infolis:toDataset
+    - "@id": infolis:toDataset
+      "schema:domainIncludes":
+          - "@id": dcat:Dataset
+
+    # infolis:primaryPublication
+    - "@id": infolis:primaryPublication
+      "@type": rdfs:Property
+      "rdfs:label":
+         "@value": Publication-Dataset-Mapping
+         "@language": en
+      "rdfs:comment":
+         "@value": A join of an bibo:Document and a dcat:Dataset defining the relation of the two
+         "@language": en
+      "rdfs:range": 
+          "@id": bibo:Document

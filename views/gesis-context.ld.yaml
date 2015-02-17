@@ -1,0 +1,10 @@
+resource_1_title:
+    "@id": "infolis:resource_1_title"
+resource_2_title:
+    "@id": "infolis:resource_2_title"
+resource_1_id_type:
+    "infolis:resource_1_id_type"
+resource_2_id_type:
+    "infolis:resource_2_id_type"
+confidence: 
+    "infolis:confidence"
