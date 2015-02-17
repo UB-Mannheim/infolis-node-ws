@@ -7,7 +7,7 @@ Namespaces =
     disco: 'http://rdf-vocabulary.ddialliance.org/discovery#'
     foaf: 'http://xmlns.com/foaf/0.1/'
     foaf: "http://xmlns.com/foaf/0.1/"
-    infolis: "http://www-test.bib.uni-mannheim.de/infolis/vocab/"
+    infolis: "http://www-test.bib.uni-mannheim.de/infolis/dev/vocab/"
     org: 'http://www.w3.org/ns/org#'
     owl: 'http://www.w3.org/2002/07/owl#'
     prov: 'http://www.w3.org/ns/prov#'
