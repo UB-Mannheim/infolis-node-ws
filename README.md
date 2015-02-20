@@ -1,6 +1,8 @@
 infolis helper webservices
 ==========================
 
+[![Join the chat at https://gitter.im/infolis/pubres](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/infolis/pubres?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 Requires NodeJS and a running MongoDB
 
 Start with
