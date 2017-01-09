@@ -1,5 +1,6 @@
 node_modules
 infolis-links.csv
 http-infolis-ws.conf
+npm-debug.log
 *csv
 *log
