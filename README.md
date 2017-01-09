@@ -1,6 +1,8 @@
 infolis helper webservices
 ==========================
 
+**OBSOLETE**
+
 Requires NodeJS and a running MongoDB
 
 Start with
